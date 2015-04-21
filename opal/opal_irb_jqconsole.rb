@@ -2,8 +2,7 @@ require 'opal'
 require 'opal-jquery'
 require 'opal_irb_log_redirector'
 require 'opal_irb'
-require 'browser'
-require 'browser/dom'
+require 'jqconsole'
 
 # top level methods for irb cmd line
 def irb_link_for history_num=nil
@@ -53,15 +52,49 @@ HTML
     create("##{parent_element_id}")
   end
 
+  def self.add_hot_key_panel_behavior(keys_hash)
+    Element.find("body").on(:keydown) { |evt|
+      if create_key_filter(keys_hash, evt)
+        if panel.visible?
+          hide_panel
+        else
+          show_panel
+        end
+      end
+    }
+  end
+  # set $DEBUG_KEY_FILTER = true somewhere in your app to see the keys for debugging
+  def self.create_key_filter(keys_hash, evt)
+    puts "evt.ctrl_key #{evt.ctrl_key} evt.meta_key #{evt.meta_key} evt.shift_key #{evt.shift_key} evt.key_code #{evt.key_code}_" if $DEBUG_KEY_FILTER
+    keys_hash[:modifiers].all? { |modifier| evt.send("#{modifier}_key") } && evt.key_code == keys_hash[:key].upcase.ord
+  end
+
   def self.add_open_panel_behavior(link_id)
     Element.id(link_id).on(:click) {
-      panel = Element.id("#{BOTTOM_PANEL_ID}")
-        if panel.visible?
-          alert "OpalIRB is already showing"
-        else
-          panel.show
-        end
+      if panel.visible?
+        alert "OpalIRB is already showing"
+      else
+        show_panel
+      end
     }
+  end
+
+  def self.panel
+    Element.id("#{BOTTOM_PANEL_ID}")
+  end
+
+  def self.show_panel
+    panel.show
+    Timeout.new { console.focus}
+  end
+
+  def self.hide_panel
+    panel.hide
+  end
+
+
+  def focus
+    @jqconsole.Focus
   end
 
   attr_reader :irb
@@ -87,7 +120,10 @@ HTML
     link_code = @code_link_handler.grab_link_code
     if link_code
       # do this after everything initializes
-      Timeout.new { print_and_process_code link_code  }
+      Timeout.new {
+        print_and_process_code link_code
+        self.class.show_panel
+      }
     end
   end
 
